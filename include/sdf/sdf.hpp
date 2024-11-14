@@ -165,7 +165,8 @@ struct SDF {
     // @param copy whether to make a copy of the data instead of referencing it
     // SDF/containment computation is robust to mesh self-intersections and
     // facewinding but is slower.
-    SDF(Eigen::Ref<const Points> verts, Eigen::Ref<const Triangles> faces,
+    SDF(Eigen::Ref<const Points> verts, Eigen::Ref<const Triangles> faces, 
+        bool half = false,
         bool robust = true, bool copy = false);
     ~SDF();
 
@@ -199,8 +200,9 @@ struct SDF {
     //
     // WARNING: if robust=false (from constructor), this WILL FAIL if the mesh
     // has self-intersections.
-    Eigen::Matrix<bool, Eigen::Dynamic, 1> contains(
+    void contains(
         Eigen::Ref<const Points> points,
+        Eigen::Matrix<bool, Eigen::Dynamic, 1> &result,
         int n_threads = std::thread::hardware_concurrency()) const;
 
     // Call if vertex positions have been updated to rebuild the KD tree
@@ -240,6 +242,9 @@ struct SDF {
 
     // Whether SDF is in robust mode
     const bool robust;
+
+    // Whether control the ray in top sphere
+    const bool half;
 
     // Whether we own data
     const bool own_data;

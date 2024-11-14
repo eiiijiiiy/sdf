@@ -15,8 +15,8 @@ namespace sdf {
 
 struct SDF::Impl {
     Impl(Eigen::Ref<const Points> verts, Eigen::Ref<const Triangles> faces,
-         bool robust)
-        : verts(verts), faces(faces), robust(robust), kd_tree(verts) {
+        bool half, bool robust)
+        : verts(verts), faces(faces), half(half), robust(robust), kd_tree(verts) {
         face_normal.resize(faces.rows(), face_normal.ColsAtCompileTime);
         face_area.resize(faces.rows());
         adj_faces.resize(verts.rows());
@@ -40,12 +40,28 @@ struct SDF::Impl {
             // Generate a random rotation matrix using a unit quaternion
             // to use as raycast frame, ref
             // https://en.wikipedia.org/wiki/Rotation_matrix#Uniform_random_rotation_matrices
-            auto& rg = get_rng();
-            std::normal_distribution<float> gaussian(0.0f, 1.0f);
-            Eigen::Quaternionf rand_rot(gaussian(rg), gaussian(rg),
-                                        gaussian(rg), gaussian(rg));
-            rand_rot.normalize();
-            raycast_axes.noalias() = rand_rot.toRotationMatrix();
+            if (!half)
+            {
+                auto& rg = get_rng();
+                std::normal_distribution<float> gaussian(0.0f, 1.0f);
+                Eigen::Quaternionf rand_rot(gaussian(rg), gaussian(rg),
+                                            gaussian(rg), gaussian(rg));
+                rand_rot.normalize();
+                raycast_axes.noalias() = rand_rot.toRotationMatrix();
+            }
+            else
+            {
+                // assume the ray is the z-top after transforming the crs to the raycasaxes
+                do{
+                    auto& rg = get_rng();
+                    std::normal_distribution<float> gaussian(0.0f, 1.0f);
+                    Eigen::Quaternionf rand_rot(gaussian(rg), gaussian(rg),
+                                                gaussian(rg), gaussian(rg));
+                    rand_rot.normalize();
+                    raycast_axes.noalias() = rand_rot.toRotationMatrix();
+                }while((raycast_axes.transpose() * Eigen::Vector3f(0,0,1))(2) < 0);
+            }
+            
         }
         for (int i = 0; i < faces.rows(); ++i) {
             const auto va = verts.row(faces(i, 0)), vb = verts.row(faces(i, 1)),
@@ -157,19 +173,21 @@ struct SDF::Impl {
         return result;
     }
 
-    Eigen::Matrix<bool, Eigen::Dynamic, 1> contains(
+    void contains(
         Eigen::Ref<const Points> points,
+        Eigen::Matrix<bool, Eigen::Dynamic, 1> &results,
         int n_threads = std::thread::hardware_concurrency()) const {
         if (robust) {
-            Eigen::Matrix<bool, Eigen::Dynamic, 1> result(points.rows());
+            // Eigen::Matrix<bool, Eigen::Dynamic, 1> result(points.rows());
             maybe_parallel_for(
-                [&](int i) { result[i] = _raycast(points.row(i)) >= 0.0f; },
+                [&](int i) { results[i] = _raycast(points.row(i)) >= 0.0f; },
                 (int)points.rows(),
                 n_threads);
-            return result;
+            // return result;
         } else {
             Vector vals = calc(points, true, n_threads);
-            return vals.array() >= 0;
+            // return vals.array() >= 0;
+            results = vals.array() >= 0;
         }
     }
 
@@ -239,6 +257,7 @@ struct SDF::Impl {
     Eigen::Ref<const Triangles> faces;
     // Whether to use 'robust' sign computation
     const bool robust;
+    const bool half;
 
     // Stores face normals [n_face, 3]
     Points face_normal;
@@ -298,8 +317,7 @@ struct SDF::Impl {
                 const auto face = faces.row(faceid);
                 Eigen::Matrix<float, 1, 3, Eigen::RowMajor> normal =
                     face_normal.row(faceid) * raycast_axes;
-                if ((normal.dot(point - verts.row(face[0]) * raycast_axes) *
-                         normal[ax_idx] >
+                if ((normal.dot(point - verts.row(face[0]) * raycast_axes) * normal[ax_idx] >
                      0.f) == ax_inv) {
                     const auto bary = util::bary2d<float>(
                         point.segment<2>(ax_offs),
@@ -329,14 +347,14 @@ struct SDF::Impl {
 };
 
 SDF::SDF(Eigen::Ref<const Points> verts, Eigen::Ref<const Triangles> faces,
-         bool robust, bool copy)
-    : robust(robust), own_data(copy) {
+         bool half, bool robust, bool copy)
+    : half(half), robust(robust), own_data(copy) {
     if (copy) {
         owned_verts = verts;
         owned_faces = faces;
-        p_impl = std::make_unique<Impl>(owned_verts, owned_faces, robust);
+        p_impl = std::make_unique<Impl>(owned_verts, owned_faces, half, robust);
     } else {
-        p_impl = std::make_unique<Impl>(verts, faces, robust);
+        p_impl = std::make_unique<Impl>(verts, faces, half, robust);
     }
 }
 
@@ -382,10 +400,11 @@ Eigen::VectorXi SDF::nn(Eigen::Ref<const Points> points, int n_threads) const {
     return p_impl->nn(points, n_threads);
 }
 
-Eigen::Matrix<bool, Eigen::Dynamic, 1> SDF::contains(
+void SDF::contains(
     Eigen::Ref<const Points> points,
+    Eigen::Matrix<bool, Eigen::Dynamic, 1> &results,
     int n_threads) const {
-    return p_impl->contains(points, n_threads);
+    p_impl->contains(points, results, n_threads);
 }
 
 void SDF::update() { p_impl->update(); }

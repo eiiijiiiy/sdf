@@ -346,6 +346,25 @@ struct SDF::Impl {
     }
 };
 
+SDF::SDF(bool half, bool robust, bool copy)
+    : half(half), robust(robust), own_data(copy) {}
+
+void SDF::init(
+    Eigen::Ref<const Points> verts, 
+    Eigen::Ref<const Triangles> faces,
+    bool half, bool robust)
+{   
+    half = half;
+    robust = robust;
+    if (own_data) {
+        owned_verts = verts;
+        owned_faces = faces;
+        p_impl = std::make_unique<Impl>(owned_verts, owned_faces, half, robust);
+    } else {
+        p_impl = std::make_unique<Impl>(verts, faces, half, robust);
+    }
+}
+
 SDF::SDF(Eigen::Ref<const Points> verts, Eigen::Ref<const Triangles> faces,
          bool half, bool robust, bool copy)
     : half(half), robust(robust), own_data(copy) {

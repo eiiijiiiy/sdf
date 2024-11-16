@@ -165,6 +165,10 @@ struct SDF {
     // @param copy whether to make a copy of the data instead of referencing it
     // SDF/containment computation is robust to mesh self-intersections and
     // facewinding but is slower.
+    SDF(bool half = false,
+        bool robust = true, bool copy = false);
+    void init(Eigen::Ref<const Points> verts, Eigen::Ref<const Triangles> faces,
+        bool half = false, bool robust = true);
     SDF(Eigen::Ref<const Points> verts, Eigen::Ref<const Triangles> faces, 
         bool half = false,
         bool robust = true, bool copy = false);

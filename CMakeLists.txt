@@ -29,7 +29,7 @@ option( SDF_BUILD_PYTHON "Build the python bindings, if pybind11 available" OFF 
 option( SDF_BUILD_INSTALL "Build the install target" ON )
 
 if ( CMAKE_COMPILER_IS_GNUCXX OR (CMAKE_CXX_COMPILER_ID MATCHES "Clang") )
-    set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-deprecated -Wno-deprecated-declarations -O3 -funroll-loops -g" )
+    set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread -Wno-deprecated -Wno-deprecated-declarations -O3 -funroll-loops -g" )
 elseif( MSVC )
     set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MTd")
     set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /MT /GLT /Ox")
